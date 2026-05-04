@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>꿀잠 가이드 - 완전 익명 시스템</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <style>
+        :root {
+            --primary-color: #a2d2ff;
+            --secondary-color: #ffafcc;
+            --admin-color: #7209b7;
+            --background-color: #ffffff;
+            --text-color: #2b2d42;
+            --card-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            --border-radius: 15px;
+            --error-color: #ff4d4d;
+        }
+
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0; padding: 0;
+            display: flex; justify-content: center;
+        }
+
+        .container {
+            width: 100%; max-width: 500px;
+            padding: 20px; box-sizing: border-box;
+        }
+
+        header { text-align: center; margin-bottom: 20px; }
+        header h1 { color: var(--primary-color); margin-bottom: 5px; }
+
+        .card {
+            background: #fff; border-radius: var(--border-radius);
+            padding: 20px; margin-bottom: 20px;
+            box-shadow: var(--card-shadow); border: 1px solid #f0f0f0;
+        }
+
+        .hidden { display: none !important; }
+
+        label { display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.9rem; }
+        input, select {
+            width: 100%; padding: 12px; margin-bottom: 15px;
+            border: 2px solid #f0f0f0; border-radius: 10px;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%; padding: 15px; background-color: var(--primary-color);
+            color: white; border: none; border-radius: 10px;
+            font-weight: bold; cursor: pointer; transition: 0.2s;
+        }
+
+        button:hover { background-color: #8cc4f7; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        .auth-toggle {
+            text-align: center; margin-top: 10px; font-size: 0.85rem; color: #666; text-decoration: underline; cursor: pointer;
+        }
+
+        .status-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 0.8rem; color: #888; margin-bottom: 10px;
+        }
+
+        #authError { 
+            color: var(--error-color); 
+            font-size: 0.85rem; 
+            margin-bottom: 15px; 
+            text-align: center; 
+            line-height: 1.4;
+            padding: 10px;
+            background-color: #fff1f1;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .setup-guide {
+            background: #fff4f4; border: 1px solid #ffcccc; padding: 12px; 
+            border-radius: 8px; font-size: 0.8rem; color: #cc0000; margin-bottom: 15px;
+            line-height: 1.5;
+        }
+
+        .anonymous-notice {
+            font-size: 0.75rem; color: #999; text-align: center; margin-top: 15px; line-height: 1.4;
+        }
+
+        .history-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f9f9f9; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>🌙 꿀잠 가이드</h1>
+        <p>개인정보 없이 익명 아이디로 시작하세요</p>
+    </header>
+
+    <!-- [익명 로그인/가입 화면] -->
+    <div id="authSection" class="card">
+        <h2 id="authTitle">익명 로그인</h2>
+        
+        <div id="authError"></div>
+
+        <div id="setupGuide" class="hidden">
+            <div class="setup-guide">
+                <strong>⚙️ 설정 확인 필요:</strong><br>
+                Firebase 콘솔 > 빌드 > Authentication > Sign-in method 탭에서 <strong>'이메일/비밀번호'</strong>를 <b>사용 설정(Enabled)</b>으로 변경해야 이 기능을 사용할 수 있습니다.
+            </div>
+        </div>
+
+        <input type="text" id="usernameInput" placeholder="나만의 익명 아이디">
+        <input type="password" id="passInput" placeholder="비밀번호 (6자 이상)">
+        <button id="authBtn">시작하기</button>
+        <p class="auth-toggle" id="authToggle">처음이신가요? 익명 아이디 만들기</p>
+        <div class="anonymous-notice">
+            * 이메일이나 전화번호를 수집하지 않습니다.<br>
+            아이디와 비밀번호를 잊어버리면 데이터를 복구할 수 없습니다.
+        </div>
+    </div>
+
+    <!-- [메인 앱 화면] -->
+    <div id="mainApp" class="hidden">
+        <div class="status-bar">
+            <span id="userDisplay">익명 사용자</span>
+            <button onclick="handleLogout()" style="width: auto; padding: 5px 10px; font-size: 0.7rem; background: #eee; color: #666;">로그아웃</button>
+        </div>
+
+        <div class="card">
+            <h2>오늘의 수면 체크</h2>
+            <label>1. 잠드는 데 걸리는 시간</label>
+            <select id="sleepDelay">
+                <option value="0">15분 이내 (0점)</option>
+                <option value="1">16-30분 (1점)</option>
+                <option value="2">31-60분 (2점)</option>
+                <option value="3">60분 초과 (3점)</option>
+            </select>
+            <label>2. 밤중에 깨는 횟수</label>
+            <select id="nightWake">
+                <option value="0">없음 (0점)</option>
+                <option value="1">1회 (1점)</option>
+                <option value="2">2회 (2점)</option>
+                <option value="3">3회 이상 (3점)</option>
+            </select>
+            <label>3. 낮 피로감</label>
+            <select id="dayFatigue">
+                <option value="0">전혀 없음 (0점)</option>
+                <option value="1">약간 있음 (1점)</option>
+                <option value="2">많이 있음 (2점)</option>
+                <option value="3">매우 심함 (3점)</option>
+            </select>
+            <button onclick="calculateAndSave()">분석 및 저장</button>
+        </div>
+
+        <div class="card">
+            <h2>내 수면 기록</h2>
+            <canvas id="historyChart"></canvas>
+            <div id="historyList" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. Firebase 초기화
+    const firebaseConfig = {
+        apiKey: "AIzaSyDDstmJx0ea6ljVWe6xYUGpkMAma1vdAo0",
+        authDomain: "healthcare-webapp-22353.firebaseapp.com",
+        databaseURL: "https://healthcare-webapp-22353-default-rtdb.firebaseio.com",
+        projectId: "healthcare-webapp-22353",
+        storageBucket: "healthcare-webapp-22353.firebasestorage.app",
+        messagingSenderId: "940201502583",
+        appId: "1:940201502583:web:b4da658ffada92b210e372"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const database = firebase.database();
+
+    const ANON_DOMAIN = "@anonymous.user";
+
+    let myChart = null;
+    let sleepHistory = [];
+    let isLoginMode = true;
+
+    // 2. 인증 상태 감시
+    auth.onAuthStateChanged(user => {
+        const authSection = document.getElementById('authSection');
+        const mainApp = document.getElementById('mainApp');
+        if (user) {
+            authSection.classList.add('hidden');
+            mainApp.classList.remove('hidden');
+            const displayId = user.email.split('@')[0];
+            document.getElementById('userDisplay').innerText = `ID: ${displayId}`;
+            listenUserData(user.uid);
+        } else {
+            authSection.classList.remove('hidden');
+            mainApp.classList.add('hidden');
+        }
+    });
+
+    // 3. 익명 로그인/회원가입 처리
+    document.getElementById('authBtn').onclick = async () => {
+        const username = document.getElementById('usernameInput').value.trim();
+        const pass = document.getElementById('passInput').value.trim();
+        const errorDiv = document.getElementById('authError');
+        const setupGuide = document.getElementById('setupGuide');
+        const authBtn = document.getElementById('authBtn');
+
+        if (!username || pass.length < 6) {
+            errorDiv.innerText = "아이디와 6자 이상의 비밀번호를 입력하세요.";
+            errorDiv.style.display = "block";
+            return;
+        }
+
+        const virtualEmail = username + ANON_DOMAIN;
+        authBtn.disabled = true;
+        errorDiv.style.display = "none";
+        setupGuide.classList.add('hidden');
+
+        try {
+            if (isLoginMode) {
+                await auth.signInWithEmailAndPassword(virtualEmail, pass);
+            } else {
+                await auth.createUserWithEmailAndPassword(virtualEmail, pass);
+                await database.ref('users/' + auth.currentUser.uid + '/profile').set({
+                    username: username,
+                    createdAt: Date.now()
+                });
+            }
+        } catch (e) {
+            console.error(e);
+            errorDiv.style.display = "block";
+            
+            if (e.code === 'auth/operation-not-allowed') {
+                errorDiv.innerText = "서버 설정이 완료되지 않았습니다.";
+                setupGuide.classList.remove('hidden');
+            } else if (e.code === 'auth/user-not-found') {
+                errorDiv.innerText = "존재하지 않는 익명 아이디입니다. '만들기'를 먼저 진행하세요.";
+            } else if (e.code === 'auth/email-already-in-use') {
+                errorDiv.innerText = "이미 사용 중인 아이디입니다. 다른 아이디를 선택하세요.";
+            } else if (e.code === 'auth/wrong-password') {
+                errorDiv.innerText = "비밀번호가 일치하지 않습니다.";
+            } else {
+                errorDiv.innerText = "오류: " + e.message;
+            }
+        } finally {
+            authBtn.disabled = false;
+        }
+    };
+
+    // 4. UI 전환
+    document.getElementById('authToggle').onclick = () => {
+        isLoginMode = !isLoginMode;
+        document.getElementById('authTitle').innerText = isLoginMode ? "익명 로그인" : "익명 아이디 만들기";
+        document.getElementById('authBtn').innerText = isLoginMode ? "시작하기" : "생성하기";
+        document.getElementById('authToggle').innerText = isLoginMode ? "처음이신가요? 익명 아이디 만들기" : "이미 아이디가 있나요? 로그인";
+        document.getElementById('authError').style.display = "none";
+        document.getElementById('setupGuide').classList.add('hidden');
+    };
+
+    function handleLogout() { auth.signOut(); }
+
+    function listenUserData(uid) {
+        database.ref('users/' + uid + '/sleepLogs').on('value', snapshot => {
+            const data = snapshot.val();
+            sleepHistory = data ? Object.values(data).sort((a,b) => a.timestamp - b.timestamp) : [];
+            updateUI();
+        });
+    }
+
+    async function calculateAndSave() {
+        const user = auth.currentUser;
+        if (!user) return;
+        const score = parseInt(document.getElementById('sleepDelay').value) +
+                      parseInt(document.getElementById('nightWake').value) +
+                      parseInt(document.getElementById('dayFatigue').value);
+        
+        const newRecord = {
+            score,
+            date: new Date().toLocaleDateString('ko-KR', {month:'short', day:'numeric', hour:'numeric', minute:'numeric'}),
+            timestamp: Date.now()
+        };
+        await database.ref('users/' + user.uid + '/sleepLogs').push(newRecord);
+        alert("기록 완료!");
+    }
+
+    function updateUI() {
+        const list = document.getElementById('historyList');
+        list.innerHTML = sleepHistory.length ? "" : "<p style='text-align:center; color:#ccc;'>기록이 없습니다.</p>";
+        [...sleepHistory].reverse().forEach(h => {
+            const d = document.createElement('div');
+            d.className = 'history-item';
+            d.innerHTML = `<span>${h.date}</span><strong>${h.score}점</strong>`;
+            list.appendChild(d);
+        });
+        renderChart();
+    }
+
+    function renderChart() {
+        const ctx = document.getElementById('historyChart').getContext('2d');
+        if (myChart) myChart.destroy();
+        myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: sleepHistory.map(h => h.date),
+                datasets: [{ 
+                    label: '부족 지수',
+                    data: sleepHistory.map(h => h.score), 
+                    borderColor: '#ffafcc', 
+                    backgroundColor: 'rgba(255, 175, 204, 0.2)',
+                    fill: true,
+                    tension: 0.3 
+                }]
+            },
+            options: { 
+                responsive: true,
+                plugins: { legend: { display: false } }, 
+                scales: { y: { beginAtZero: true, max: 9, ticks: { stepSize: 1 } } } 
+            }
+        });
+    }
+</script>
+</body>
+</html>
